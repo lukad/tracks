@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"math/rand"
 	"net"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -75,6 +77,9 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 }
 
 func (s *Server) handleConnectRequest(addr *net.UDPAddr, header requestHeader, req connectRequest) {
+	if header.ConnectionId != 0x41727101980 {
+		return
+	}
 	response := connectResponse{
 		Action:        actionConnect,
 		TransactionId: req.TransactionId,
@@ -87,6 +92,7 @@ func (s *Server) handleConnectRequest(addr *net.UDPAddr, header requestHeader, r
 	}
 	c := &Client{
 		Addr: addr,
+		Id:   rand.Int63(),
 	}
 	s.addClient(c)
 }
@@ -113,4 +119,8 @@ func (s *Server) Addr() *net.UDPAddr {
 
 func (s *Server) Close() error {
 	return s.conn.Close()
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
 }
