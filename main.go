@@ -3,19 +3,33 @@ package main
 import (
 	"fmt"
 	"github.com/lukad/tracks/server"
-	"os"
+	flag "github.com/ogier/pflag"
+	"log"
 )
 
-func main() {
-	s, err := server.Listen(":1337")
-	if err != nil {
-		fmt.Println("Failed to listen:", err)
-		os.Exit(1)
+// flags
+var (
+	listen = flag.StringP("listen", "l", ":1337", "Bind to this address")
+)
+
+func init() {
+	flag.Usage = func() {
+		fmt.Println("Usage: tracks [options]")
+		flag.PrintDefaults()
 	}
-	fmt.Printf("Listening on %s\n", s.Addr())
+	flag.Parse()
+
+	log.SetPrefix("[tracks] ")
+}
+
+func main() {
+	s, err := server.Listen(*listen)
+	if err != nil {
+		log.Fatalln("Failed to listen:", err)
+	}
+	log.Printf("Listening on %s\n", s.Addr())
 
 	if err := s.Run(); err != nil {
-		fmt.Println(err)
+		log.Fatalln(err)
 	}
-	fmt.Scanln()
 }
