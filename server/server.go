@@ -8,14 +8,11 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"sync"
 	"time"
 )
 
 type Server struct {
-	conn        *net.UDPConn
-	clients     map[int64]*Client
-	clientMutex sync.Mutex
+	conn *net.UDPConn
 }
 
 // Starts listening on specified address and returns a Server object
@@ -27,8 +24,7 @@ func Listen(address string) (*Server, error) {
 	}
 
 	server := &Server{
-		conn:    conn,
-		clients: make(map[int64]*Client),
+		conn: conn,
 	}
 
 	return server, nil
@@ -66,6 +62,7 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 	case actionConnect:
 		var req connectRequest
 		if err := struc.UnpackWithOrder(buf, &req, binary.BigEndian); err != nil {
+			log.Println("Error unpacking connect request:", err)
 			return
 		}
 		s.handleConnectRequest(addr, header, req)
@@ -73,6 +70,7 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 	case actionAnnounce:
 		var req announceRequest
 		if err := struc.UnpackWithOrder(buf, &req, binary.BigEndian); err != nil {
+			log.Println("Error unpacking announce request:", err)
 			return
 		}
 		s.handleAnnounceRequest(addr, header, req)
@@ -102,50 +100,15 @@ func (s *Server) handleConnectRequest(addr *net.UDPAddr, header requestHeader, r
 		log.Println("error:", err)
 		return
 	}
-	c := &Client{
-		Addr:          addr,
-		Id:            response.ConnectionId,
-		TransactionId: response.TransactionId,
-	}
-	s.addClient(c)
 }
 
 func (s *Server) handleAnnounceRequest(addr *net.UDPAddr, header requestHeader, req announceRequest) {
 	log.Printf("%#v\n", header)
 	log.Printf("%#v\n", req)
-	var client *Client
-	if client = s.getClient(header.ConnectionId); client != nil {
-		return
-	}
-	if client.TransactionId != req.TransactionId {
-		return
-	}
-
-	log.Printf("%#v", req)
 }
 
-func (s *Server) getClient(connectionId int64) *Client {
-	s.clientMutex.Lock()
-	c := s.clients[connectionId]
-	s.clientMutex.Unlock()
-	return c
-}
-
-func (s *Server) addClient(c *Client) {
-	s.clientMutex.Lock()
-	s.clients[c.Id] = c
-	s.clientMutex.Unlock()
-	log.Printf("new client: %#v\t%s\n", c, c.Addr)
-}
-
-func (s *Server) removeClient(id int64) {
-	s.clientMutex.Lock()
-	delete(s.clients, id)
-	s.clientMutex.Unlock()
-}
-
-func (s *Server) Addr() *net.UDPAddr {
-	return s.conn.LocalAddr().(*net.UDPAddr)
+func (s *Server) Addr() net.Addr {
+	return s.conn.LocalAddr()
 }
 
 func (s *Server) Close() error {
