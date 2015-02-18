@@ -5,6 +5,7 @@ import (
 )
 
 type Client struct {
-	Id   int64
-	Addr *net.UDPAddr
+	Id            int64
+	Addr          *net.UDPAddr
+	TransactionId int32
 }
