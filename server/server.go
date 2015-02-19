@@ -74,6 +74,14 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 			return
 		}
 		s.handleAnnounceRequest(addr, header, req)
+
+	case actionScrape:
+		var req scrapeRequest
+		if err := struc.UnpackWithOrder(buf, &req, binary.BigEndian); err != nil {
+			log.Println("Error unpacking scrape request:", err)
+			return
+		}
+		s.handleScrapeRequest(addr, header, req)
 	}
 }
 
@@ -92,17 +100,48 @@ func (s *Server) handleConnectRequest(addr *net.UDPAddr, header requestHeader, r
 
 	buf := bytes.NewBuffer(nil)
 	if err := struc.PackWithOrder(buf, &response, binary.BigEndian); err != nil {
-		log.Println("Error packing connect response struct:", err)
+		log.Println("Error packing connect response:", err)
 		return
 	}
 
-	if n, err := s.conn.WriteToUDP(buf.Bytes(), addr); err != nil || n != len(buf.Bytes()) {
+	if _, err := s.conn.WriteToUDP(buf.Bytes(), addr); err != nil {
 		log.Println("error:", err)
 		return
 	}
 }
 
 func (s *Server) handleAnnounceRequest(addr *net.UDPAddr, header requestHeader, req announceRequest) {
+	log.Printf("%#v\n", header)
+	log.Printf("%#v\n", req)
+
+	peers := []peer{peer{}, peer{}}
+	response := announceResponse{
+		Action:        actionAnnounce,
+		TransactionId: req.TransactionId,
+		Interval:      10,
+		Leechers:      1337,
+		Seeders:       7331,
+	}
+
+	buf := bytes.NewBuffer(nil)
+	if err := struc.PackWithOrder(buf, &response, binary.BigEndian); err != nil {
+		log.Println("Error packing announce response:", err)
+		return
+	}
+
+	for _, p := range peers {
+		if err := struc.PackWithOrder(buf, &p, binary.BigEndian); err != nil {
+			log.Println("Error writing peer struct to annnounce response:", err)
+			return
+		}
+	}
+
+	if _, err := s.conn.WriteToUDP(buf.Bytes(), addr); err != nil {
+		log.Println("Error sending announce response:", err)
+	}
+}
+
+func (s *Server) handleScrapeRequest(addr *net.UDPAddr, header requestHeader, req scrapeRequest) {
 	log.Printf("%#v\n", header)
 	log.Printf("%#v\n", req)
 }

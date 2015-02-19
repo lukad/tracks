@@ -20,7 +20,7 @@ const (
 
 type requestHeader struct {
 	ConnectionId int64
-	Action       action `struc:"int32"`
+	Action       action
 }
 
 type connectRequest struct {
@@ -28,21 +28,49 @@ type connectRequest struct {
 }
 
 type connectResponse struct {
-	Action        action `struc:"int32"`
-	TransactionId int32  `struc:"int32"`
-	ConnectionId  int64  `struc:"int64"`
+	Action        action
+	TransactionId int32
+	ConnectionId  int64
 }
 
 type announceRequest struct {
 	TransactionId int32
-	InfoHash      []byte `struc:"[20]byte"`
-	PeerId        []byte `struc:"[20]byte"`
+	InfoHash      [20]byte
+	PeerId        [20]byte
 	Downloaded    int64
 	Left          int64
 	Uploaded      int64
-	Event         event `struc:"int32"`
-	IpAddress     int32
-	Key           int32
+	Event         event
+	IpAddress     uint32
+	Key           uint32
 	NumWant       int32
-	Port          int16
+	Port          uint16
+}
+
+type peer struct {
+	Ip   int32
+	Port uint16
+}
+
+type announceResponse struct {
+	Action        action
+	TransactionId int32
+	Interval      int32
+	Leechers      int32
+	Seeders       int32
+}
+
+type scrapeRequest struct {
+	TransactionId int32
+}
+
+type torrentInfo struct {
+	Seeders   int32
+	Completed int32
+	Leechers  int32
+}
+
+type scrapeResponse struct {
+	Action        action
+	TransactionId int32
 }
