@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/lunixbochs/struc"
-	"log"
+	"github.com/op/go-logging"
 	"math/rand"
 	"net"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 type Server struct {
 	conn *net.UDPConn
+	log  *logging.Logger
 }
 
 // Starts listening on specified address and returns a Server object
@@ -20,11 +22,12 @@ func Listen(address string) (*Server, error) {
 	addr, _ := net.ResolveUDPAddr("udp", address)
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return nil, errors.New("Failed to listen on " + addr.String())
+		return nil, errors.New(fmt.Sprintf("Failed to listen on %s: %s", addr.String(), err))
 	}
 
 	server := &Server{
 		conn: conn,
+		log:  logging.MustGetLogger("server"),
 	}
 
 	return server, nil
@@ -40,7 +43,7 @@ func (s *Server) Run() (err error) {
 		// TODO: handle error
 
 		if n < 16 { // If packet is smaller than 16 bytes we may ignore it
-			log.Println("packet is smaller than 16 bytes")
+			s.log.Debug("Discarding packet smaller than 16 bytes")
 			continue
 		}
 		go s.handleRequest(addr, n, b)
@@ -53,7 +56,7 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 	buf := bytes.NewReader(b)
 
 	if err := struc.UnpackWithOrder(buf, &header, binary.BigEndian); err != nil {
-		log.Println("error unpacking packet:", err)
+		s.log.Warning("error unpacking request header: %s", err)
 		return
 	}
 
@@ -62,7 +65,7 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 	case actionConnect:
 		var req connectRequest
 		if err := struc.UnpackWithOrder(buf, &req, binary.BigEndian); err != nil {
-			log.Println("Error unpacking connect request:", err)
+			s.log.Warning("Error unpacking connect request: %s", err)
 			return
 		}
 		s.handleConnectRequest(addr, header, req)
@@ -70,7 +73,7 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 	case actionAnnounce:
 		var req announceRequest
 		if err := struc.UnpackWithOrder(buf, &req, binary.BigEndian); err != nil {
-			log.Println("Error unpacking announce request:", err)
+			s.log.Warning("Error unpacking announce request: %s", err)
 			return
 		}
 		s.handleAnnounceRequest(addr, header, req)
@@ -78,7 +81,7 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 	case actionScrape:
 		var req scrapeRequest
 		if err := struc.UnpackWithOrder(buf, &req, binary.BigEndian); err != nil {
-			log.Println("Error unpacking scrape request:", err)
+			s.log.Warning("Error unpacking scrape request: %s", err)
 			return
 		}
 		s.handleScrapeRequest(addr, header, req)
@@ -89,8 +92,8 @@ func (s *Server) handleConnectRequest(addr *net.UDPAddr, header requestHeader, r
 	if header.ConnectionId != 0x41727101980 {
 		return
 	}
-	log.Printf("%#v\n", header)
-	log.Printf("%#v\n", req)
+	s.log.Debug("%#v\n", header)
+	s.log.Debug("%#v\n", req)
 
 	response := connectResponse{
 		Action:        actionConnect,
@@ -100,19 +103,19 @@ func (s *Server) handleConnectRequest(addr *net.UDPAddr, header requestHeader, r
 
 	buf := bytes.NewBuffer(nil)
 	if err := struc.PackWithOrder(buf, &response, binary.BigEndian); err != nil {
-		log.Println("Error packing connect response:", err)
+		s.log.Warning("Error packing connect response:", err)
 		return
 	}
 
 	if _, err := s.conn.WriteToUDP(buf.Bytes(), addr); err != nil {
-		log.Println("error:", err)
+		s.log.Warning("error:", err)
 		return
 	}
 }
 
 func (s *Server) handleAnnounceRequest(addr *net.UDPAddr, header requestHeader, req announceRequest) {
-	log.Printf("%#v\n", header)
-	log.Printf("%#v\n", req)
+	s.log.Debug("%#v\n", header)
+	s.log.Debug("%#v\n", req)
 
 	peers := []peer{peer{}, peer{}}
 	response := announceResponse{
@@ -125,25 +128,25 @@ func (s *Server) handleAnnounceRequest(addr *net.UDPAddr, header requestHeader, 
 
 	buf := bytes.NewBuffer(nil)
 	if err := struc.PackWithOrder(buf, &response, binary.BigEndian); err != nil {
-		log.Println("Error packing announce response:", err)
+		s.log.Warning("Error packing announce response:", err)
 		return
 	}
 
 	for _, p := range peers {
 		if err := struc.PackWithOrder(buf, &p, binary.BigEndian); err != nil {
-			log.Println("Error writing peer struct to annnounce response:", err)
+			s.log.Warning("Error writing peer struct to annnounce response:", err)
 			return
 		}
 	}
 
 	if _, err := s.conn.WriteToUDP(buf.Bytes(), addr); err != nil {
-		log.Println("Error sending announce response:", err)
+		s.log.Warning("Error sending announce response:", err)
 	}
 }
 
 func (s *Server) handleScrapeRequest(addr *net.UDPAddr, header requestHeader, req scrapeRequest) {
-	log.Printf("%#v\n", header)
-	log.Printf("%#v\n", req)
+	s.log.Debug("%#v\n", header)
+	s.log.Debug("%#v\n", req)
 }
 
 func (s *Server) Addr() net.Addr {
