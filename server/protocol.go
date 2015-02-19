@@ -60,6 +60,10 @@ type announceResponse struct {
 	Seeders       int32
 }
 
+type infoHash struct {
+	InfoHash [20]byte
+}
+
 type scrapeRequest struct {
 	TransactionId int32
 }

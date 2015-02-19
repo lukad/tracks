@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/lunixbochs/struc"
 	"github.com/op/go-logging"
+	"io"
 	"math/rand"
 	"net"
 	"time"
@@ -84,7 +85,7 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 			s.log.Warning("Error unpacking scrape request: %s", err)
 			return
 		}
-		s.handleScrapeRequest(addr, header, req)
+		s.handleScrapeRequest(addr, header, req, buf)
 	}
 }
 
@@ -144,9 +145,59 @@ func (s *Server) handleAnnounceRequest(addr *net.UDPAddr, header requestHeader, 
 	}
 }
 
-func (s *Server) handleScrapeRequest(addr *net.UDPAddr, header requestHeader, req scrapeRequest) {
+func (s *Server) handleScrapeRequest(addr *net.UDPAddr, header requestHeader, req scrapeRequest, data io.Reader) {
 	s.log.Debug("%#v\n", header)
 	s.log.Debug("%#v\n", req)
+
+	var infoHashes [][20]uint8
+
+	for {
+		var hash infoHash
+		if err := struc.UnpackWithOrder(data, &hash, binary.BigEndian); err != nil {
+			if err != io.EOF {
+				s.log.Warning("Could not unpack info hash from scrape request: %s", err)
+			}
+			break
+		}
+		hashEmpty := true
+		for _, b := range hash.InfoHash {
+			if b != 0 {
+				hashEmpty = false
+			}
+		}
+		if hashEmpty {
+			break
+		}
+		infoHashes = append(infoHashes, hash.InfoHash)
+	}
+
+	s.log.Debug("%#v\n", infoHashes)
+
+	response := scrapeResponse{
+		Action:        actionScrape,
+		TransactionId: req.TransactionId,
+	}
+
+	buf := bytes.NewBuffer(nil)
+	if err := struc.PackWithOrder(buf, &response, binary.BigEndian); err != nil {
+		s.log.Warning("Error packing scrape response: %s", err)
+		return
+	}
+
+	for range infoHashes {
+		info := torrentInfo{
+			Seeders:   0,
+			Completed: 0,
+			Leechers:  0,
+		}
+		if err := struc.PackWithOrder(buf, &info, binary.BigEndian); err != nil {
+			s.log.Warning("Error packing scrape response torrent info: %s", err)
+		}
+	}
+
+	if _, err := s.conn.WriteToUDP(buf.Bytes(), addr); err != nil {
+		s.log.Warning("Error sending scrape response: %s", err)
+	}
 }
 
 func (s *Server) Addr() net.Addr {
