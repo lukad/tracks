@@ -1,80 +1,81 @@
 package server
 
-type action int32
+type Action int32
 
 const (
-	actionConnect action = iota
-	actionAnnounce
-	actionScrape
-	actionError
+	ActionConnect Action = iota
+	ActionAnnounce
+	ActionScrape
+	ActionError
 )
 
-type event int32
+type Event int32
 
 const (
-	eventNone event = iota
-	eventCompleted
-	eventStarted
-	eventStopped
+	EventNone Event = iota
+	EventCompleted
+	EventStarted
+	EventStopped
 )
 
-type requestHeader struct {
+type RequestHeader struct {
 	ConnectionId int64
-	Action       action
+	Action       Action
 }
 
-type connectRequest struct {
+// Connect
+type ConnectRequest struct {
 	TransactionId int32
 }
 
-type connectResponse struct {
-	Action        action
+type ConnectResponse struct {
+	Action        Action
 	TransactionId int32
 	ConnectionId  int64
 }
 
-type announceRequest struct {
+type AnnounceRequest struct {
 	TransactionId int32
 	InfoHash      [20]byte
 	PeerId        [20]byte
 	Downloaded    int64
 	Left          int64
 	Uploaded      int64
-	Event         event
+	Event         Event
 	IpAddress     uint32
 	Key           uint32
 	NumWant       int32
 	Port          uint16
 }
 
-type peer struct {
+type Peer struct {
 	Ip   int32
 	Port uint16
 }
 
-type announceResponse struct {
-	Action        action
+type AnnounceResponse struct {
+	Action        Action
 	TransactionId int32
 	Interval      int32
 	Leechers      int32
 	Seeders       int32
 }
 
-type infoHash struct {
+type InfoHash struct {
 	InfoHash [20]byte
 }
 
-type scrapeRequest struct {
+type ScrapeRequest struct {
 	TransactionId int32
 }
 
-type torrentInfo struct {
+type TorrentInfo struct {
 	Seeders   int32
 	Completed int32
 	Leechers  int32
 }
 
-type scrapeResponse struct {
-	Action        action
+type ScrapeResponse struct {
+	Action        Action
 	TransactionId int32
 }

@@ -53,7 +53,7 @@ func (s *Server) Run() (err error) {
 }
 
 func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
-	var header requestHeader
+	var header RequestHeader
 	buf := bytes.NewReader(b)
 
 	if err := struc.UnpackWithOrder(buf, &header, binary.BigEndian); err != nil {
@@ -63,24 +63,24 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 
 	switch header.Action {
 
-	case actionConnect:
-		var req connectRequest
+	case ActionConnect:
+		var req ConnectRequest
 		if err := struc.UnpackWithOrder(buf, &req, binary.BigEndian); err != nil {
 			s.log.Warning("Error unpacking connect request: %s", err)
 			return
 		}
 		s.handleConnectRequest(addr, header, req)
 
-	case actionAnnounce:
-		var req announceRequest
+	case ActionAnnounce:
+		var req AnnounceRequest
 		if err := struc.UnpackWithOrder(buf, &req, binary.BigEndian); err != nil {
 			s.log.Warning("Error unpacking announce request: %s", err)
 			return
 		}
 		s.handleAnnounceRequest(addr, header, req)
 
-	case actionScrape:
-		var req scrapeRequest
+	case ActionScrape:
+		var req ScrapeRequest
 		if err := struc.UnpackWithOrder(buf, &req, binary.BigEndian); err != nil {
 			s.log.Warning("Error unpacking scrape request: %s", err)
 			return
@@ -89,15 +89,15 @@ func (s *Server) handleRequest(addr *net.UDPAddr, n int, b []byte) {
 	}
 }
 
-func (s *Server) handleConnectRequest(addr *net.UDPAddr, header requestHeader, req connectRequest) {
+func (s *Server) handleConnectRequest(addr *net.UDPAddr, header RequestHeader, req ConnectRequest) {
 	if header.ConnectionId != 0x41727101980 {
 		return
 	}
 	s.log.Debug("%#v\n", header)
 	s.log.Debug("%#v\n", req)
 
-	response := connectResponse{
-		Action:        actionConnect,
+	response := ConnectResponse{
+		Action:        ActionConnect,
 		TransactionId: req.TransactionId,
 		ConnectionId:  rand.Int63(),
 	}
@@ -114,13 +114,13 @@ func (s *Server) handleConnectRequest(addr *net.UDPAddr, header requestHeader, r
 	}
 }
 
-func (s *Server) handleAnnounceRequest(addr *net.UDPAddr, header requestHeader, req announceRequest) {
+func (s *Server) handleAnnounceRequest(addr *net.UDPAddr, header RequestHeader, req AnnounceRequest) {
 	s.log.Debug("%#v\n", header)
 	s.log.Debug("%#v\n", req)
 
-	peers := []peer{peer{}, peer{}}
-	response := announceResponse{
-		Action:        actionAnnounce,
+	peers := []Peer{Peer{}, Peer{}}
+	response := AnnounceResponse{
+		Action:        ActionAnnounce,
 		TransactionId: req.TransactionId,
 		Interval:      10,
 		Leechers:      1337,
@@ -145,22 +145,22 @@ func (s *Server) handleAnnounceRequest(addr *net.UDPAddr, header requestHeader, 
 	}
 }
 
-func (s *Server) handleScrapeRequest(addr *net.UDPAddr, header requestHeader, req scrapeRequest, data io.Reader) {
+func (s *Server) handleScrapeRequest(addr *net.UDPAddr, header RequestHeader, req ScrapeRequest, data io.Reader) {
 	s.log.Debug("%#v\n", header)
 	s.log.Debug("%#v\n", req)
 
 	var infoHashes [][20]uint8
 
 	for {
-		var hash infoHash
-		if err := struc.UnpackWithOrder(data, &hash, binary.BigEndian); err != nil {
+		var infoHash InfoHash
+		if err := struc.UnpackWithOrder(data, &infoHash, binary.BigEndian); err != nil {
 			if err != io.EOF {
 				s.log.Warning("Could not unpack info hash from scrape request: %s", err)
 			}
 			break
 		}
 		hashEmpty := true
-		for _, b := range hash.InfoHash {
+		for _, b := range infoHash.InfoHash {
 			if b != 0 {
 				hashEmpty = false
 			}
@@ -168,13 +168,13 @@ func (s *Server) handleScrapeRequest(addr *net.UDPAddr, header requestHeader, re
 		if hashEmpty {
 			break
 		}
-		infoHashes = append(infoHashes, hash.InfoHash)
+		infoHashes = append(infoHashes, infoHash.InfoHash)
 	}
 
 	s.log.Debug("%#v\n", infoHashes)
 
-	response := scrapeResponse{
-		Action:        actionScrape,
+	response := ScrapeResponse{
+		Action:        ActionScrape,
 		TransactionId: req.TransactionId,
 	}
 
@@ -185,7 +185,7 @@ func (s *Server) handleScrapeRequest(addr *net.UDPAddr, header requestHeader, re
 	}
 
 	for range infoHashes {
-		info := torrentInfo{
+		info := TorrentInfo{
 			Seeders:   0,
 			Completed: 0,
 			Leechers:  0,
